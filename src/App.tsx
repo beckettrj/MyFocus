@@ -19,6 +19,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminPage, setShowAdminPage] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -45,6 +46,9 @@ function App() {
   }, []);
 
   const handleSignOut = async () => {
+    if (hasUnsavedChanges) {
+      await saveTaskOrder();
+    }
     setIsReconnecting(true);
     await resetSupabaseClient();
     setIsReconnecting(false);
@@ -170,6 +174,11 @@ function App() {
     }
   };
 
+  const handleTasksReorder = (newTasks: Task[]) => {
+    setTasks(newTasks);
+    setHasUnsavedChanges(true);
+  };
+
   const handleTaskComplete = async (taskId: string) => {
     try {
       const taskIndex = tasks.findIndex(t => t.id === taskId);
@@ -217,7 +226,25 @@ function App() {
     }
   };
 
+  const handleTabSwitch = async (tab: 'daily' | 'weekly') => {
+    if (hasUnsavedChanges) {
+      await saveTaskOrder();
+    }
+    setActiveTab(tab);
+  };
+
+  const handleShowAddModal = async () => {
+    if (hasUnsavedChanges) {
+      await saveTaskOrder();
+    }
+    setShowAddModal(true);
+  };
+
   const handleRemoveCompletedTasks = async () => {
+    if (hasUnsavedChanges) {
+      await saveTaskOrder();
+    }
+
     try {
       const { error } = await supabase
         .from('tasks')
@@ -232,6 +259,46 @@ function App() {
       toast.success('Completed tasks archived');
     } catch (error) {
       toast.error('Failed to remove completed tasks');
+    }
+  };
+
+  const saveTaskOrder = async () => {
+    if (!hasUnsavedChanges) return;
+
+    try {
+      // Update tasks one by one with new created_at timestamps to maintain order
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        const newCreatedAt = new Date(Date.now() + i * 1000).toISOString(); // Space out timestamps by 1 second
+
+        const { error } = await supabase
+          .from('tasks')
+          .update({
+            title: task.title,
+            description: task.description,
+            is_completed: task.is_completed,
+            is_daily: task.is_daily,
+            user_id: task.user_id,
+            parent_id: task.parent_id,
+            last_worked_on: task.last_worked_on,
+            created_at: newCreatedAt
+          })
+          .eq('id', task.id);
+
+        if (error) {
+          console.error('Save order error for task', task.id, ':', error);
+          toast.error(`Failed to save task order: ${error.message}`);
+          fetchTasks();
+          return;
+        }
+      }
+
+      toast.success('Task order saved');
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error saving task order:', error);
+      toast.error('Failed to save task order');
+      fetchTasks();
     }
   };
 
@@ -271,7 +338,7 @@ function App() {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => setActiveTab('daily')}
+                onClick={() => handleTabSwitch('daily')}
                 className={`flex items-center px-3 py-1.5 rounded-lg transition-colors text-sm ${
                   activeTab === 'daily'
                     ? 'bg-indigo-600 text-white'
@@ -282,7 +349,7 @@ function App() {
                 Daily Tasks
               </button>
               <button
-                onClick={() => setActiveTab('weekly')}
+                onClick={() => handleTabSwitch('weekly')}
                 className={`flex items-center px-3 py-1.5 rounded-lg transition-colors text-sm ${
                   activeTab === 'weekly'
                     ? 'bg-indigo-600 text-white'
@@ -325,7 +392,7 @@ function App() {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={handleShowAddModal}
                 className="flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 <Plus className="w-4 h-4 mr-1" />
@@ -338,13 +405,21 @@ function App() {
                 <Trash2 className="w-4 h-4 mr-1" />
                 Clear Completed
               </button>
+              {hasUnsavedChanges && (
+                <button
+                  onClick={saveTaskOrder}
+                  className="flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Save Order
+                </button>
+              )}
             </div>
           </div>
 
           <TaskList
             tasks={filteredTasks}
             onTaskComplete={handleTaskComplete}
-            onTasksReorder={() => {}}
+            onTasksReorder={handleTasksReorder}
           />
         </div>
       </div>
@@ -364,7 +439,7 @@ function App() {
               .insert({
                 title: task.title,
                 description: task.description,
-                is_daily: task.isDaily,
+                is_daily: task.is_daily,
                 user_id: user.id,
               })
               .select()

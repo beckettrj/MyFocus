@@ -35,3 +35,24 @@ CREATE POLICY "Admin full access"
     SELECT 1 FROM users
     WHERE id = auth.uid() AND is_admin = true
   ));
+
+/*
+  # Add position column to tasks table
+
+  1. Changes
+    - Add position column to tasks table
+    - Update existing tasks with sequential positions
+*/
+
+-- Add position column
+ALTER TABLE tasks ADD COLUMN position integer;
+
+-- Update existing tasks with sequential positions
+WITH numbered_tasks AS (
+  SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, is_daily ORDER BY created_at) - 1 as row_num
+  FROM tasks
+)
+UPDATE tasks
+SET position = numbered_tasks.row_num
+FROM numbered_tasks
+WHERE tasks.id = numbered_tasks.id;

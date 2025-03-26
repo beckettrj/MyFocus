@@ -24,9 +24,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onAdd, isDaily }) 
       id: Date.now().toString(),
       title,
       description,
-      isCompleted: false,
-      isDaily,
-      comments: [],
+      is_completed: false,
+      is_daily: isDaily,
+      user_id: '',
       subtasks: []
     };
     onAdd(newTask);

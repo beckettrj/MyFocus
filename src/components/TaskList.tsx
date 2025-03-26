@@ -9,7 +9,7 @@ interface TaskListProps {
   onTasksReorder: (tasks: Task[]) => void;
 }
 
-const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskComplete }) => {
+const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskComplete, onTasksReorder }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartIndex, setDragStartIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -43,6 +43,8 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskComplete }) => {
         setIsDragging(false);
         setDragStartIndex(null);
         setDragOverIndex(null);
+        // Call onTasksReorder with the final order
+        onTasksReorder(newTasks);
         return;
       }
 
